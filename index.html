@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaterialX Graph Editor — GLSL vs Cycles</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1b1d20;
+    --panel: #262a2e;
+    --line: #3a4047;
+    --fg: #e6e8ea;
+    --muted: #a8b0b8;
+    --accent: #7ee787;
+    --warn: #e3b341;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 0%, #2a3036 0, var(--bg) 45%);
+    color: var(--fg);
+    font: 15px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  main { width: min(1050px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 80px; }
+  h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.02em; }
+  .subtitle { margin: 0 0 40px; color: var(--muted); font-size: 18px; }
+  h2 { margin: 0 0 16px; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .result {
+    display: block;
+    padding: 26px 28px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(160deg, #2c3238, var(--panel));
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .15s, transform .15s;
+  }
+  .result:hover { border-color: #66707a; transform: translateY(-1px); }
+  .result h3 { margin: 0 0 4px; font-size: 24px; }
+  .result .folder { margin: 0 0 16px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+  .badge { padding: 3px 8px; border-radius: 999px; background: #353b42; color: var(--muted); font-size: 12px; }
+  .badge.ok { background: rgba(126,231,135,.13); color: var(--accent); }
+  .badge.warn { background: rgba(227,179,65,.15); color: var(--warn); }
+  .result p { margin: 0 0 14px; color: #c3c9cf; max-width: 760px; }
+  .links { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+  .links a { color: var(--accent); text-decoration: none; }
+  .links a:hover { text-decoration: underline; }
+  .issue { margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>MaterialX Graph Editor: GLSL vs Cycles</h1>
+  <p class="subtitle">Visual comparison archive for the Cycles render backend.</p>
+
+  <h2>Results by date</h2>
+
+  <a class="result" href="21stOctober2026/index.html">
+    <h3>21st October 2026</h3>
+    <p class="folder">/21stOctober2026/</p>
+    <div class="badges">
+      <span class="badge">50 Example materials</span>
+      <span class="badge">512 × 512</span>
+      <span class="badge">Cycles: 16 spp + OIDN</span>
+      <span class="badge">GLSL baseline</span>
+      <span class="badge ok">48 usable Cycles frames</span>
+      <span class="badge warn">2 broken materials</span>
+    </div>
+    <p>
+      Side-by-side renders of every document under
+      <code>resources/Materials/Examples</code>, using the default Graph Editor
+      shaderball and lighting. Cycles uses 16 samples with OpenImageDenoise;
+      GLSL is a single frame. Click through for full-size images and per-material
+      logs, or filter directly to the problematic cases.
+    </p>
+    <div class="links">
+      <a href="21stOctober2026/index.html">Open comparison gallery →</a>
+      <a href="21stOctober2026/README.md">Method and notes</a>
+      <a href="21stOctober2026/results.csv">Download results.csv</a>
+    </div>
+    <p class="issue">
+      Needs attention: simple hair (unstable/black or segfault), thin film
+      (segfault), and reproducible transmission/coating losses in ketchup, jade,
+      honey, and pearl.
+    </p>
+  </a>
+
+  <footer>
+    Static comparison site published from the MaterialX <code>gh-pages</code> branch.
+  </footer>
+</main>
+</body>
+</html>

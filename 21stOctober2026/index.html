@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MaterialX Graph Editor: GLSL vs Cycles</title>
+<style>
+  :root { color-scheme: dark; --bg:#1b1d20; --card:#262a2e; --line:#3a4047; --fg:#e6e8ea; --muted:#a8b0b8; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,sans-serif; }
+  h1 { margin:0 0 8px; font-size:24px; }
+  .intro { color:var(--muted); max-width:1000px; margin-bottom:18px; }
+  .controls { position:sticky; top:0; z-index:5; display:flex; gap:12px; align-items:center; padding:10px 0; background:linear-gradient(var(--bg) 75%, transparent); }
+  input[type=search] { width:360px; max-width:60vw; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:#151719; color:var(--fg); }
+  label { color:var(--muted); user-select:none; }
+  h2 { margin:28px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); font-size:17px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .card header { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+  .card h3 { margin:0; font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+  .badges { display:flex; flex-wrap:wrap; gap:5px; }
+  .badge { font-size:11px; padding:2px 6px; border-radius:999px; background:#333a41; color:var(--muted); }
+  .badge.ok { background:rgba(63,185,80,.16); color:#7ee787; }
+  .badge.warn { background:rgba(210,153,34,.18); color:#e3b341; }
+  .badge.bad { background:rgba(248,81,73,.18); color:#ff7b72; }
+  .badge.blank { background:rgba(188,140,255,.18); color:#d2a8ff; }
+  .badge.black { background:rgba(248,81,73,.18); color:#ff7b72; }
+  .badge.note { background:rgba(210,153,34,.18); color:#e3b341; }
+  .looknote { margin:6px 0 0; font-size:11px; color:var(--warn); }
+  .problems { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 18px; margin:18px 0 8px; }
+  .problems h2 { margin:0 0 8px; border:0; padding:0; }
+  .problems li { margin:4px 0; color:var(--muted); }
+  .problems a { color:var(--fg); }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  figure { margin:0; }
+  figure img { width:100%; aspect-ratio:1; display:block; background:#151719; border-radius:4px; }
+  figcaption { margin-top:4px; font-size:11px; color:var(--muted); }
+  details { margin-top:8px; font-size:11px; color:var(--muted); }
+  pre { max-height:260px; overflow:auto; white-space:pre-wrap; background:#151719; padding:8px; border-radius:4px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<h1>MaterialX Graph Editor: GLSL vs Cycles</h1>
+<div class="intro">
+  50 materials, rendered at 512&times;512. Cycles uses 16 samples with OpenImageDenoise enabled (denoise start sample 8); GLSL is a single frame.
+  Click either image for the full-size PNG. Logs are included under each material.
+  <br>Failures: 2 material(s) with at least one backend not producing a frame.
+  Black Cycles renders: 2. Other reviewed look differences: 4.
+  <br>Several materials marked <em>Sequential rerun</em> were rechecked individually; parallel load can race the first OSL shader build.
+</div>
+<section class="problems">
+  <h2>Materials to inspect first</h2>
+  <ul><li><a href="#m-Examples__OpenPbr__open_pbr_honey">Examples/OpenPbr/open_pbr_honey.mtlx</a> &mdash; Volume absorption lost: Cycles renders clear glass instead of amber honey.</li><li><a href="#m-Examples__OpenPbr__open_pbr_ketchup">Examples/OpenPbr/open_pbr_ketchup.mtlx</a> &mdash; Transmission/absorption lost: Cycles renders nearly white instead of deep red.</li><li><a href="#m-Examples__OpenPbr__open_pbr_pearl">Examples/OpenPbr/open_pbr_pearl.mtlx</a> &mdash; Pearlescent coating lost: Cycles renders plain white.</li><li><a href="#m-Examples__SimpleHair__simple_hair_default">Examples/SimpleHair/simple_hair_default.mtlx</a> &mdash; Cycles unstable; Cycles frame is black</li><li><a href="#m-Examples__StandardSurface__standard_surface_jade">Examples/StandardSurface/standard_surface_jade.mtlx</a> &mdash; Subsurface/transmission lost: Cycles renders pale white with pink edges.</li><li><a href="#m-Examples__StandardSurface__standard_surface_thin_film">Examples/StandardSurface/standard_surface_thin_film.mtlx</a> &mdash; Cycles exit 139; Cycles frame is black</li></ul>
+</section>
+<div class="controls">
+  <input id="search" type="search" placeholder="Filter by material name...">
+  <label><input id="failonly" type="checkbox"> Show failures/blank only</label>
+</div>
+
+        <section>
+          <h2>DisneyPrincipled</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__DisneyPrincipled__disney_principled_carpaint" data-name="examples/disneyprincipled/disney_principled_carpaint.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/DisneyPrincipled/disney_principled_carpaint.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.28s</span>
+              <span class="badge ok">Cycles: ok &middot; 0.5s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_carpaint/glsl.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_carpaint/glsl.png" alt="GLSL Examples/DisneyPrincipled/disney_principled_carpaint.mtlx"></a>
+              <figcaption>GLSL &middot; mean 85.2 &middot; sd 18.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_carpaint/cycles.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_carpaint/cycles.png" alt="Cycles Examples/DisneyPrincipled/disney_principled_carpaint.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 94.2 &middot; sd 28.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_carpaint/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__DisneyPrincipled__disney_principled_default" data-name="examples/disneyprincipled/disney_principled_default.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/DisneyPrincipled/disney_principled_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.17s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.22s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_default/glsl.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_default/glsl.png" alt="GLSL Examples/DisneyPrincipled/disney_principled_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 81.6 &middot; sd 14.0</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_default/cycles.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_default/cycles.png" alt="Cycles Examples/DisneyPrincipled/disney_principled_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 88.0 &middot; sd 19.5</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_default/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__DisneyPrincipled__disney_principled_glass" data-name="examples/disneyprincipled/disney_principled_glass.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/DisneyPrincipled/disney_principled_glass.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.27s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.11s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_glass/glsl.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_glass/glsl.png" alt="GLSL Examples/DisneyPrincipled/disney_principled_glass.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.1 &middot; sd 22.3</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_glass/cycles.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_glass/cycles.png" alt="Cycles Examples/DisneyPrincipled/disney_principled_glass.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 91.2 &middot; sd 33.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_glass/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_glass/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__DisneyPrincipled__disney_principled_gold" data-name="examples/disneyprincipled/disney_principled_gold.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/DisneyPrincipled/disney_principled_gold.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.72s</span>
+              <span class="badge ok">Cycles: ok &middot; 8.27s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_gold/glsl.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_gold/glsl.png" alt="GLSL Examples/DisneyPrincipled/disney_principled_gold.mtlx"></a>
+              <figcaption>GLSL &middot; mean 80.0 &middot; sd 25.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_gold/cycles.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_gold/cycles.png" alt="Cycles Examples/DisneyPrincipled/disney_principled_gold.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 89.7 &middot; sd 34.2</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_gold/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_gold/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__DisneyPrincipled__disney_principled_plastic" data-name="examples/disneyprincipled/disney_principled_plastic.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/DisneyPrincipled/disney_principled_plastic.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.42s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.51s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_plastic/glsl.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_plastic/glsl.png" alt="GLSL Examples/DisneyPrincipled/disney_principled_plastic.mtlx"></a>
+              <figcaption>GLSL &middot; mean 89.5 &middot; sd 24.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__DisneyPrincipled__disney_principled_plastic/cycles.png"><img loading="lazy" src="images/Examples__DisneyPrincipled__disney_principled_plastic/cycles.png" alt="Cycles Examples/DisneyPrincipled/disney_principled_plastic.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 100.1 &middot; sd 36.5</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_plastic/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__DisneyPrincipled__disney_principled_plastic/cycles.png
+</pre></details>
+        </article></div>
+        </section>
+        <section>
+          <h2>GltfPbr</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_boombox" data-name="examples/gltfpbr/gltf_pbr_boombox.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_boombox.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.88s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.61s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_boombox/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_boombox/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_boombox.mtlx"></a>
+              <figcaption>GLSL &middot; mean 81.8 &middot; sd 27.5</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_boombox/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_boombox/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_boombox.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 78.3 &middot; sd 34.0</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_boombox/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_boombox/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_carpaint" data-name="examples/gltfpbr/gltf_pbr_carpaint.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_carpaint.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.85s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.19s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_carpaint/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_carpaint/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_carpaint.mtlx"></a>
+              <figcaption>GLSL &middot; mean 86.1 &middot; sd 18.5</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_carpaint/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_carpaint/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_carpaint.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 94.3 &middot; sd 29.5</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_carpaint/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_carpaint/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_default" data-name="examples/gltfpbr/gltf_pbr_default.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.88s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.04s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_default/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_default/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 110.2 &middot; sd 54.3</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_default/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_default/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 92.2 &middot; sd 25.9</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_glass" data-name="examples/gltfpbr/gltf_pbr_glass.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_glass.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.22s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.45s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_glass/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_glass/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_glass.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.8 &middot; sd 22.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_glass/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_glass/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_glass.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 93.3 &middot; sd 34.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_glass/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_glass/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_gold" data-name="examples/gltfpbr/gltf_pbr_gold.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_gold.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.83s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.88s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_gold/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_gold/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_gold.mtlx"></a>
+              <figcaption>GLSL &middot; mean 80.0 &middot; sd 25.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_gold/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_gold/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_gold.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 89.7 &middot; sd 34.2</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_gold/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_gold/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__GltfPbr__gltf_pbr_plastic" data-name="examples/gltfpbr/gltf_pbr_plastic.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/GltfPbr/gltf_pbr_plastic.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.79s</span>
+              <span class="badge ok">Cycles: ok &middot; 7.15s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_plastic/glsl.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_plastic/glsl.png" alt="GLSL Examples/GltfPbr/gltf_pbr_plastic.mtlx"></a>
+              <figcaption>GLSL &middot; mean 90.0 &middot; sd 24.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__GltfPbr__gltf_pbr_plastic/cycles.png"><img loading="lazy" src="images/Examples__GltfPbr__gltf_pbr_plastic/cycles.png" alt="Cycles Examples/GltfPbr/gltf_pbr_plastic.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 100.2 &middot; sd 36.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_plastic/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__GltfPbr__gltf_pbr_plastic/cycles.png
+</pre></details>
+        </article></div>
+        </section>
+        <section>
+          <h2>OpenPbr</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_aluminum_brushed" data-name="examples/openpbr/open_pbr_aluminum_brushed.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_aluminum_brushed.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.29s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.27s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_aluminum_brushed/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_aluminum_brushed/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_aluminum_brushed.mtlx"></a>
+              <figcaption>GLSL &middot; mean 85.4 &middot; sd 25.2</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_aluminum_brushed/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_aluminum_brushed/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_aluminum_brushed.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 98.2 &middot; sd 40.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_aluminum_brushed/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_aluminum_brushed/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_carpaint" data-name="examples/openpbr/open_pbr_carpaint.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_carpaint.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.9s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.02s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_carpaint/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_carpaint/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_carpaint.mtlx"></a>
+              <figcaption>GLSL &middot; mean 88.6 &middot; sd 22.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_carpaint/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_carpaint/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_carpaint.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 99.4 &middot; sd 36.0</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_carpaint/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_carpaint/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_default" data-name="examples/openpbr/open_pbr_default.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 5.12s</span>
+              <span class="badge ok">Cycles: ok &middot; 8.73s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_default/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_default/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 106.2 &middot; sd 50.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_default/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_default/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 122.1 &middot; sd 70.6</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_default/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_glass" data-name="examples/openpbr/open_pbr_glass.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_glass.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.05s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.39s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_glass/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_glass/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_glass.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.9 &middot; sd 22.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_glass/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_glass/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_glass.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 93.4 &middot; sd 34.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_glass/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_glass/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_honey" data-name="examples/openpbr/open_pbr_honey.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_honey.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.04s</span>
+              <span class="badge ok">Cycles: ok &middot; 13.95s</span>
+              
+              
+              
+              <span class="badge note">look differs</span>
+            </div>
+            <p class="looknote">Volume absorption lost: Cycles renders clear glass instead of amber honey.</p>
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_honey/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_honey/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_honey.mtlx"></a>
+              <figcaption>GLSL &middot; mean 79.4 &middot; sd 17.6</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_honey/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_honey/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_honey.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 93.3 &middot; sd 34.4</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_honey/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_ketchup" data-name="examples/openpbr/open_pbr_ketchup.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_ketchup.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 5.72s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.97s</span>
+              
+              
+              
+              <span class="badge note">look differs</span>
+            </div>
+            <p class="looknote">Transmission/absorption lost: Cycles renders nearly white instead of deep red.</p>
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_ketchup/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_ketchup/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_ketchup.mtlx"></a>
+              <figcaption>GLSL &middot; mean 69.6 &middot; sd 16.2</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_ketchup/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_ketchup/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_ketchup.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 127.2 &middot; sd 77.6</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_ketchup/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_lightbulb" data-name="examples/openpbr/open_pbr_lightbulb.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_lightbulb.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.61s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.86s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_lightbulb/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_lightbulb/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_lightbulb.mtlx"></a>
+              <figcaption>GLSL &middot; mean 128.4 &middot; sd 79.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_lightbulb/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_lightbulb/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_lightbulb.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 129.0 &middot; sd 79.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_lightbulb/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_lightbulb/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_pearl" data-name="examples/openpbr/open_pbr_pearl.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_pearl.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.24s</span>
+              <span class="badge ok">Cycles: ok &middot; 15.41s</span>
+              
+              
+              
+              <span class="badge note">look differs</span>
+            </div>
+            <p class="looknote">Pearlescent coating lost: Cycles renders plain white.</p>
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_pearl/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_pearl/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_pearl.mtlx"></a>
+              <figcaption>GLSL &middot; mean 98.7 &middot; sd 36.8</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_pearl/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_pearl/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_pearl.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 118.5 &middot; sd 65.0</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_pearl/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_soapbubble" data-name="examples/openpbr/open_pbr_soapbubble.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_soapbubble.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 7.64s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.81s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_soapbubble/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_soapbubble/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_soapbubble.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.6 &middot; sd 25.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_soapbubble/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_soapbubble/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_soapbubble.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 91.7 &middot; sd 40.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_soapbubble/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_soapbubble/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__OpenPbr__open_pbr_velvet" data-name="examples/openpbr/open_pbr_velvet.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/OpenPbr/open_pbr_velvet.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.83s</span>
+              <span class="badge ok">Cycles: ok &middot; 7.62s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_velvet/glsl.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_velvet/glsl.png" alt="GLSL Examples/OpenPbr/open_pbr_velvet.mtlx"></a>
+              <figcaption>GLSL &middot; mean 73.4 &middot; sd 12.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__OpenPbr__open_pbr_velvet/cycles.png"><img loading="lazy" src="images/Examples__OpenPbr__open_pbr_velvet/cycles.png" alt="Cycles Examples/OpenPbr/open_pbr_velvet.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 77.4 &middot; sd 11.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_velvet/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+WARNING: Unsupported closure keyword arg &quot;mode&quot; for sheen_bsdf (CyclesRenderView/material_0.osl:46)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__OpenPbr__open_pbr_velvet/cycles.png
+</pre></details>
+        </article></div>
+        </section>
+        <section>
+          <h2>SimpleHair</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__SimpleHair__simple_hair_default" data-name="examples/simplehair/simple_hair_default.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/SimpleHair/simple_hair_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.68s</span>
+              <span class="badge bad">Cycles: unstable &middot; 0.28s</span>
+              
+              
+              <span class="badge black">black Cycles</span>
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__SimpleHair__simple_hair_default/glsl.png"><img loading="lazy" src="images/Examples__SimpleHair__simple_hair_default/glsl.png" alt="GLSL Examples/SimpleHair/simple_hair_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 66.3 &middot; sd 23.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__SimpleHair__simple_hair_default/cycles.png"><img loading="lazy" src="images/Examples__SimpleHair__simple_hair_default/cycles.png" alt="Cycles Examples/SimpleHair/simple_hair_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 56.1 &middot; sd 35.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__SimpleHair__simple_hair_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+ERROR: error: Input file &quot;/tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__SimpleHair__simple_hair_default/cycles/CyclesRenderView/material_0.osl&quot; not found
+00:00.65 | ERROR: Shader graph: failed to read file /tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__SimpleHair__simple_hair_default/cycles/CyclesRenderView/material_0.oso
+</pre></details>
+        </article></div>
+        </section>
+        <section>
+          <h2>StandardSurface</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_brass_tiled" data-name="examples/standardsurface/standard_surface_brass_tiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_brass_tiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.81s</span>
+              <span class="badge ok">Cycles: ok &middot; 14.21s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_brass_tiled/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_brass_tiled/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_brass_tiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 75.2 &middot; sd 18.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_brass_tiled/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_brass_tiled/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_brass_tiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 80.5 &middot; sd 23.9</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_brass_tiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_brass_tiled/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_brick_procedural" data-name="examples/standardsurface/standard_surface_brick_procedural.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_brick_procedural.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.62s</span>
+              <span class="badge ok">Cycles: ok &middot; 16.57s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_brick_procedural/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_brick_procedural/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_brick_procedural.mtlx"></a>
+              <figcaption>GLSL &middot; mean 78.3 &middot; sd 11.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_brick_procedural/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_brick_procedural/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_brick_procedural.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 82.6 &middot; sd 13.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_brick_procedural/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_brick_procedural/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_carpaint" data-name="examples/standardsurface/standard_surface_carpaint.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_carpaint.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.63s</span>
+              <span class="badge ok">Cycles: ok &middot; 13.72s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_carpaint/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_carpaint/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_carpaint.mtlx"></a>
+              <figcaption>GLSL &middot; mean 86.1 &middot; sd 18.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_carpaint/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_carpaint/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_carpaint.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 94.3 &middot; sd 29.5</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_carpaint/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_carpaint/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_chess_set" data-name="examples/standardsurface/standard_surface_chess_set.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_chess_set.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.07s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.99s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_chess_set/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_chess_set/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_chess_set.mtlx"></a>
+              <figcaption>GLSL &middot; mean 73.5 &middot; sd 14.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_chess_set/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_chess_set/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_chess_set.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 77.1 &middot; sd 16.6</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_chess_set/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_chess_set/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_chrome" data-name="examples/standardsurface/standard_surface_chrome.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_chrome.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.83s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.41s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_chrome/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_chrome/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_chrome.mtlx"></a>
+              <figcaption>GLSL &middot; mean 84.0 &middot; sd 29.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_chrome/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_chrome/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_chrome.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 97.6 &middot; sd 43.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_chrome/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_copper" data-name="examples/standardsurface/standard_surface_copper.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_copper.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.71s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.27s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_copper/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_copper/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_copper.mtlx"></a>
+              <figcaption>GLSL &middot; mean 81.5 &middot; sd 18.8</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_copper/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_copper/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_copper.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 88.0 &middot; sd 27.4</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_copper/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_copper/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_default" data-name="examples/standardsurface/standard_surface_default.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.04s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.83s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_default/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_default/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 106.0 &middot; sd 50.0</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_default/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_default/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 122.0 &middot; sd 70.5</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_default/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_glass" data-name="examples/standardsurface/standard_surface_glass.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_glass.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.16s</span>
+              <span class="badge ok">Cycles: ok &middot; 13.79s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_glass/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_glass/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_glass.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.9 &middot; sd 22.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_glass/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_glass/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_glass.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 93.4 &middot; sd 34.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_glass/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_glass/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_glass_tinted" data-name="examples/standardsurface/standard_surface_glass_tinted.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_glass_tinted.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.99s</span>
+              <span class="badge ok">Cycles: ok &middot; 13.63s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_glass_tinted/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_glass_tinted/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_glass_tinted.mtlx"></a>
+              <figcaption>GLSL &middot; mean 75.7 &middot; sd 9.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_glass_tinted/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_glass_tinted/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_glass_tinted.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 74.9 &middot; sd 14.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_glass_tinted/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_glass_tinted/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_gold" data-name="examples/standardsurface/standard_surface_gold.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_gold.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.81s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.09s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_gold/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_gold/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_gold.mtlx"></a>
+              <figcaption>GLSL &middot; mean 80.0 &middot; sd 25.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_gold/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_gold/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_gold.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 89.7 &middot; sd 34.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_gold/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_greysphere" data-name="examples/standardsurface/standard_surface_greysphere.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_greysphere.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.68s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.14s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_greysphere/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_greysphere/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_greysphere.mtlx"></a>
+              <figcaption>GLSL &middot; mean 82.9 &middot; sd 15.0</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_greysphere/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_greysphere/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_greysphere.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 89.2 &middot; sd 21.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_greysphere/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_greysphere/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_greysphere_calibration" data-name="examples/standardsurface/standard_surface_greysphere_calibration.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_greysphere_calibration.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.74s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.89s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_greysphere_calibration/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_greysphere_calibration/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_greysphere_calibration.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.8 &middot; sd 17.0</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_greysphere_calibration/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_greysphere_calibration/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_greysphere_calibration.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 90.2 &middot; sd 23.0</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_greysphere_calibration/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_greysphere_calibration/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_jade" data-name="examples/standardsurface/standard_surface_jade.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_jade.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.3s</span>
+              <span class="badge ok">Cycles: ok &middot; 7.28s</span>
+              
+              
+              
+              <span class="badge note">look differs</span>
+            </div>
+            <p class="looknote">Subsurface/transmission lost: Cycles renders pale white with pink edges.</p>
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_jade/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_jade/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_jade.mtlx"></a>
+              <figcaption>GLSL &middot; mean 82.6 &middot; sd 14.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_jade/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_jade/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_jade.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 114.5 &middot; sd 58.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_jade/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_look_brass_tiled" data-name="examples/standardsurface/standard_surface_look_brass_tiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_look_brass_tiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.26s</span>
+              <span class="badge ok">Cycles: ok &middot; 16.02s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_look_brass_tiled/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_look_brass_tiled/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_look_brass_tiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 75.2 &middot; sd 18.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_look_brass_tiled/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_look_brass_tiled/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_look_brass_tiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 88.2 &middot; sd 30.1</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_look_brass_tiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_look_brass_tiled/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_look_wood_tiled" data-name="examples/standardsurface/standard_surface_look_wood_tiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_look_wood_tiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.01s</span>
+              <span class="badge ok">Cycles: ok &middot; 15.7s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_look_wood_tiled/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_look_wood_tiled/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_look_wood_tiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 71.7 &middot; sd 12.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_look_wood_tiled/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_look_wood_tiled/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_look_wood_tiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 92.4 &middot; sd 26.0</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_look_wood_tiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_look_wood_tiled/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_marble_solid" data-name="examples/standardsurface/standard_surface_marble_solid.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_marble_solid.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.63s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.49s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_marble_solid/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_marble_solid/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_marble_solid.mtlx"></a>
+              <figcaption>GLSL &middot; mean 99.1 &middot; sd 41.0</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_marble_solid/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_marble_solid/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_marble_solid.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 123.2 &middot; sd 71.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_marble_solid/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_metal_brushed" data-name="examples/standardsurface/standard_surface_metal_brushed.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_metal_brushed.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.26s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.1s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_metal_brushed/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_metal_brushed/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_metal_brushed.mtlx"></a>
+              <figcaption>GLSL &middot; mean 79.7 &middot; sd 18.1</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_metal_brushed/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_metal_brushed/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_metal_brushed.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 85.7 &middot; sd 26.6</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_metal_brushed/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_metal_brushed/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_onyx_hextiled" data-name="examples/standardsurface/standard_surface_onyx_hextiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_onyx_hextiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.37s</span>
+              <span class="badge ok">Cycles: ok &middot; 15.3s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_onyx_hextiled/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_onyx_hextiled/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_onyx_hextiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.8 &middot; sd 17.6</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_onyx_hextiled/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_onyx_hextiled/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_onyx_hextiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 90.6 &middot; sd 26.2</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_onyx_hextiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_onyx_hextiled/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_plastic" data-name="examples/standardsurface/standard_surface_plastic.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_plastic.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.21s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.27s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_plastic/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_plastic/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_plastic.mtlx"></a>
+              <figcaption>GLSL &middot; mean 90.1 &middot; sd 24.5</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_plastic/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_plastic/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_plastic.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 100.3 &middot; sd 36.9</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_plastic/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_plastic/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_thin_film" data-name="examples/standardsurface/standard_surface_thin_film.mtlx" data-fail="1">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_thin_film.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.74s</span>
+              <span class="badge bad">Cycles: exit 139 &middot; 0.47s</span>
+              
+              
+              <span class="badge black">black Cycles</span>
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_thin_film/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_thin_film/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_thin_film.mtlx"></a>
+              <figcaption>GLSL &middot; mean 65.6 &middot; sd 24.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_thin_film/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_thin_film/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_thin_film.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 56.1 &middot; sd 35.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_thin_film/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_velvet" data-name="examples/standardsurface/standard_surface_velvet.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_velvet.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.55s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.71s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_velvet/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_velvet/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_velvet.mtlx"></a>
+              <figcaption>GLSL &middot; mean 73.3 &middot; sd 13.7</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_velvet/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_velvet/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_velvet.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 68.1 &middot; sd 18.6</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_velvet/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+WARNING: Unsupported closure keyword arg &quot;mode&quot; for sheen_bsdf (CyclesRenderView/material_0.osl:62)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_velvet/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__StandardSurface__standard_surface_wood_tiled" data-name="examples/standardsurface/standard_surface_wood_tiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/StandardSurface/standard_surface_wood_tiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.27s</span>
+              <span class="badge ok">Cycles: ok &middot; 12.76s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_wood_tiled/glsl.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_wood_tiled/glsl.png" alt="GLSL Examples/StandardSurface/standard_surface_wood_tiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 71.7 &middot; sd 12.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__StandardSurface__standard_surface_wood_tiled/cycles.png"><img loading="lazy" src="images/Examples__StandardSurface__standard_surface_wood_tiled/cycles.png" alt="Cycles Examples/StandardSurface/standard_surface_wood_tiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 75.0 &middot; sd 10.4</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_wood_tiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_wood_tiled/cycles.png
+</pre></details>
+        </article></div>
+        </section>
+        <section>
+          <h2>UsdPreviewSurface</h2>
+          <div class="grid">
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled" data-name="examples/usdpreviewsurface/usd_preview_surface_brass_tiled.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_brass_tiled.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.68s</span>
+              <span class="badge ok">Cycles: ok &middot; 14.16s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_brass_tiled.mtlx"></a>
+              <figcaption>GLSL &middot; mean 74.0 &middot; sd 17.9</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_brass_tiled.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 78.8 &middot; sd 22.9</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_brass_tiled/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_carpaint" data-name="examples/usdpreviewsurface/usd_preview_surface_carpaint.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_carpaint.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.47s</span>
+              <span class="badge ok">Cycles: ok &middot; 11.31s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_carpaint.mtlx"></a>
+              <figcaption>GLSL &middot; mean 86.0 &middot; sd 18.5</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_carpaint.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 94.2 &middot; sd 29.4</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_carpaint/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_default" data-name="examples/usdpreviewsurface/usd_preview_surface_default.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_default.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.87s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.5s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_default/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_default/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_default.mtlx"></a>
+              <figcaption>GLSL &middot; mean 82.9 &middot; sd 14.8</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_default/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_default/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_default.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 89.4 &middot; sd 21.7</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_default/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_default/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_glass" data-name="examples/usdpreviewsurface/usd_preview_surface_glass.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_glass.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.49s</span>
+              <span class="badge ok">Cycles: ok &middot; 8.21s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_glass/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_glass/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_glass.mtlx"></a>
+              <figcaption>GLSL &middot; mean 83.8 &middot; sd 22.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_glass.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 93.3 &middot; sd 34.3</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_glass/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: out.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_gold" data-name="examples/usdpreviewsurface/usd_preview_surface_gold.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_gold.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 4.42s</span>
+              <span class="badge ok">Cycles: ok &middot; 10.77s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_gold/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_gold/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_gold.mtlx"></a>
+              <figcaption>GLSL &middot; mean 79.5 &middot; sd 25.3</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_gold/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_gold/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_gold.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 88.9 &middot; sd 33.4</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_gold/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_gold/cycles.png
+</pre></details>
+        </article>
+        <article class="card" id="m-Examples__UsdPreviewSurface__usd_preview_surface_plastic" data-name="examples/usdpreviewsurface/usd_preview_surface_plastic.mtlx" data-fail="0">
+          <header>
+            <h3>Examples/UsdPreviewSurface/usd_preview_surface_plastic.mtlx</h3>
+            <div class="badges">
+              <span class="badge ok">GLSL: ok &middot; 3.87s</span>
+              <span class="badge ok">Cycles: ok &middot; 9.9s</span>
+              
+              
+              
+              
+            </div>
+            
+          </header>
+          <div class="pair">
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/glsl.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/glsl.png" alt="GLSL Examples/UsdPreviewSurface/usd_preview_surface_plastic.mtlx"></a>
+              <figcaption>GLSL &middot; mean 90.0 &middot; sd 24.4</figcaption>
+            </figure>
+            <figure>
+              <a href="images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/cycles.png"><img loading="lazy" src="images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/cycles.png" alt="Cycles Examples/UsdPreviewSurface/usd_preview_surface_plastic.mtlx"></a>
+              <figcaption>Cycles 16 spp + denoise &middot; mean 100.2 &middot; sd 36.8</figcaption>
+            </figure>
+          </div>
+          <details><summary>GLSL log</summary><pre>Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/glsl.png
+</pre></details><details><summary>Cycles log</summary><pre>[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_plastic/cycles.png
+</pre></details>
+        </article></div>
+        </section>
+<script>
+const search = document.getElementById('search');
+const failonly = document.getElementById('failonly');
+function apply() {
+  const q = search.value.toLowerCase();
+  const onlyFail = failonly.checked;
+  document.querySelectorAll('.card').forEach(card => {
+    const matchesName = !q || card.dataset.name.includes(q);
+    const matchesFail = !onlyFail || card.dataset.fail === '1' || card.querySelector('.badge.blank');
+    card.classList.toggle('hidden', !(matchesName && matchesFail));
+  });
+}
+search.addEventListener('input', apply);
+failonly.addEventListener('change', apply);
+</script>
+</body>
+</html>

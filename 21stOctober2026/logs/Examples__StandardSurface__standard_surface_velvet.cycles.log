@@ -1,0 +1,3 @@
+[OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
+WARNING: Unsupported closure keyword arg "mode" for sheen_bsdf (CyclesRenderView/material_0.osl:62)
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__StandardSurface__standard_surface_velvet/cycles.png
