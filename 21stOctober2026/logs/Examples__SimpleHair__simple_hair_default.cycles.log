@@ -1,3 +1,3 @@
 [OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
-ERROR: error: Input file "/tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__SimpleHair__simple_hair_default/cycles/CyclesRenderView/material_0.osl" not found
-00:00.65 | ERROR: Shader graph: failed to read file /tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__SimpleHair__simple_hair_default/cycles/CyclesRenderView/material_0.oso
+ERROR: Closure 'chiang_hair_bsdf' is not supported by the current renderer, called from CyclesRenderView/material_0.osl:54 in shader "simple_hair_default", layer 0 "node__0x16da1bf0", group "shader_7111578393199326885"
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-light05-512/images/Examples__SimpleHair__simple_hair_default/cycles.png

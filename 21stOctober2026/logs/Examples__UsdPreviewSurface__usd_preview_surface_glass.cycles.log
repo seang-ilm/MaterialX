@@ -1,6 +1,2 @@
 [OpenColorIO Info]: Color management disabled. (Specify the $OCIO environment variable to enable.)
-ERROR: error: Input file "/tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles/CyclesRenderView/material_0.osl" not found
-00:00.40 | ERROR: Shader graph: failed to read file /tmp/opencode/ab-cycles-vs-glsl-denoised-512/work/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles/CyclesRenderView/material_0.oso
-ERROR: ConnectShaders: source layer "node__0x1221eca0" not found
-        group: shader_7111578393199326885
-Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-denoised-512/images/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles.png
+Wrote frame to disk: /tmp/opencode/ab-cycles-vs-glsl-light05-512/images/Examples__UsdPreviewSurface__usd_preview_surface_glass/cycles.png

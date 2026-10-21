@@ -66,7 +66,7 @@
     <div class="badges">
       <span class="badge">50 Example materials</span>
       <span class="badge">512 × 512</span>
-      <span class="badge">Cycles: 16 spp + OIDN</span>
+      <span class="badge">Cycles: 16 spp + OIDN, light 0.5</span>
       <span class="badge">GLSL baseline</span>
       <span class="badge ok">48 usable Cycles frames</span>
       <span class="badge warn">2 broken materials</span>
@@ -75,8 +75,9 @@
       Side-by-side renders of every document under
       <code>resources/Materials/Examples</code>, using the default Graph Editor
       shaderball and lighting. Cycles uses 16 samples with OpenImageDenoise;
-      GLSL is a single frame. Click through for full-size images and per-material
-      logs, or filter directly to the problematic cases.
+      GLSL is a single frame. Both backends use
+      <code>--lightIntensity 0.5</code>. Click through for full-size images and
+      per-material logs, or filter directly to the problematic cases.
     </p>
     <div class="links">
       <a href="21stOctober2026/index.html">Open comparison gallery →</a>
@@ -84,9 +85,9 @@
       <a href="21stOctober2026/results.csv">Download results.csv</a>
     </div>
     <p class="issue">
-      Needs attention: simple hair (unstable/black or segfault), thin film
-      (segfault), and reproducible transmission/coating losses in ketchup, jade,
-      honey, and pearl.
+      Needs attention: simple hair (black), thin film (segfault), and
+      reproducible transmission/coating losses in ketchup, jade, honey, and
+      pearl.
     </p>
   </a>
 
